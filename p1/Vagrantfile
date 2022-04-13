@@ -1,55 +1,65 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-MEMORY="1024"
-CPUS="2"
+BOX = "centos/7"
+MEMORY = 2048
+CPUS = 2
 
-MASTER="amalsagoS"
-WORKER="amalsagoSW"
+MASTER = "amalsagoS"
+WORKER = "amalsagoSW"
 
-IP_MASTER="192.168.42.110"
-IP_WORKER="192.168.42.111"
+IP_MASTER = "192.168.42.110"
+IP_WORKER = "192.168.42.111"
 
 master_script = <<-SHELL
     echo "I am master"
     echo #{IP_MASTER} #{MASTER} >> /etc/hosts
     echo #{IP_WORKER} #{WORKER} >> /etc/hosts
     cat /etc/hosts
+    echo "Install k3s and lauch server..."
+    sudo curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server --write-kubeconfig-mode=644 --advertise-address #{IP_MASTER} --node-ip #{IP_MASTER}" sh -s -
+    sleep 5
+    echo "Get nodes..."
+    sudo /usr/local/bin/k3s kubectl get node -o wide
+    echo "Copy k3s token..."
+    sudo cp -f /etc/rancher/node/password /vagrant/password
     SHELL
 
 worker_script = <<-SHELL
-    echo "I am master"
+    echo "I am worker"
     echo #{IP_WORKER} #{WORKER} >> /etc/hosts
     echo #{IP_MASTER} #{MASTER} >> /etc/hosts
     cat /etc/hosts
+    echo "Install k3s and lauch agent..."
+    export K3S_TOKEN_FILE=/vagrant/password
+    export K3S_URL=https://#{IP_MASTER}:6443
+    export INSTALL_K3S_EXEC="--flannel-iface=eth1"
+    sudo curl -sfL https://get.k3s.io | sh -s - agent --server "https://192.168.42.110:6443"  --token-file "/vagrant/password" --node-ip="192.168.42.111"
     SHELL
 
 Vagrant.configure("2") do | config |
-  config.vm.box = "centos/7"
-
+  config.vm.box = BOX
+  # Synced folder between host and the guest machine
+  #config.vm.synced_folder "./shared", "/vagrant", type: "nfs"
   config.vm.provider "virtualbox" do | vb |
     vb.memory = MEMORY
     vb.cpus = CPUS
-
     # Enable NAT hosts DNS resolver
     vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
     vb.customize ["modifyvm", :id, "--natdnsproxy1", "on"]
-
     # Reduce the time sync threshold
     vb.customize [ "guestproperty", "set", :id, "/VirtualBox/GuestAdd/VBoxService/--timesync-set-threshold", 10000 ]
   end
-
   config.vm.define MASTER do | master |
     master.vm.hostname = MASTER
     master.vm.network "private_network", ip: IP_MASTER
     master.vm.provision "shell", inline: master_script
-    master.vm.synced_folder "./shared", "/vagrant_shared", type: "nfs"  
+    master.vm.synced_folder "./shared", "/vagrant", type: "nfs"
   end
-
   config.vm.define WORKER do | worker |
     worker.vm.hostname = WORKER
     worker.vm.network "private_network", ip: IP_WORKER
     worker.vm.provision "shell", inline: worker_script
-    worker.vm.synced_folder "./shared", "/vagrant_shared", type: "nfs"  
+    worker.vm.synced_folder "./shared", "/vagrant", type: "nfs"
   end
 end
