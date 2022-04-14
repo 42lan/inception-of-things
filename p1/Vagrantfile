@@ -7,34 +7,29 @@ CPUS = 2
 
 MASTER = "amalsagoS"
 WORKER = "amalsagoSW"
-
 IP_MASTER = "192.168.42.110"
 IP_WORKER = "192.168.42.111"
 
 master_script = <<-SHELL
-    echo "I am master"
-    echo #{IP_MASTER} #{MASTER} >> /etc/hosts
-    echo #{IP_WORKER} #{WORKER} >> /etc/hosts
-    cat /etc/hosts
-    echo "Install k3s and lauch server..."
-    sudo curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server --write-kubeconfig-mode=644 --advertise-address #{IP_MASTER} --node-ip #{IP_MASTER}" sh -s -
-    sleep 5
-    echo "Get nodes..."
-    sudo /usr/local/bin/k3s kubectl get node -o wide
-    echo "Copy k3s token..."
-    sudo cp -f /etc/rancher/node/password /vagrant/password
+    echo -n "#{IP_MASTER} #{MASTER}\n#{IP_WORKER} #{WORKER}" >> /etc/hosts
+    curl -sfL https://get.k3s.io \
+      | \
+        sh -s - \
+          server \
+          --write-kubeconfig-mode=644 \
+          --flannel-iface=eth1
+    cp /var/lib/rancher/k3s/server/token /vagrant/token
     SHELL
 
 worker_script = <<-SHELL
-    echo "I am worker"
-    echo #{IP_WORKER} #{WORKER} >> /etc/hosts
-    echo #{IP_MASTER} #{MASTER} >> /etc/hosts
-    cat /etc/hosts
-    echo "Install k3s and lauch agent..."
-    export K3S_TOKEN_FILE=/vagrant/password
-    export K3S_URL=https://#{IP_MASTER}:6443
-    export INSTALL_K3S_EXEC="--flannel-iface=eth1"
-    sudo curl -sfL https://get.k3s.io | sh -s - agent --server "https://192.168.42.110:6443"  --token-file "/vagrant/password" --node-ip="192.168.42.111"
+    echo -n "#{IP_MASTER} #{MASTER}\n#{IP_WORKER} #{WORKER}" >> /etc/hosts
+    curl -sfL https://get.k3s.io \
+      | \
+        sh -s - \
+          agent \
+          --server=https://#{IP_MASTER}:6443 \
+          --token-file=/vagrant/token \
+          --flannel-iface=eth1
     SHELL
 
 Vagrant.configure("2") do | config |
