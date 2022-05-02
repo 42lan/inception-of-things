@@ -5,7 +5,7 @@ metadata:
 spec:
   project: development
   source:
-    repoURL: git@github.com:sungyongcho/iot-argocd.git
+    repoURL: https://github.com/sungyongcho/iot-argocd.git
     targetRevision: HEAD
     path: manifests
     directory:
