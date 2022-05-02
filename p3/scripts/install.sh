@@ -1,8 +1,8 @@
 #!/bin/bash -e
 
 # Update package information and install cURL
-apt update -y
-apt install -y curl
+yum update -y
+yum install -y curl
 
 # Install latest release of Docker
 # https://docs.docker.com/engine/install/ubuntu/#install-using-the-convenience-script
